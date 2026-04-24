@@ -1,6 +1,6 @@
 """
 Jarvis V2 — Voice AI Server
-FastAPI backend: receives speech text, thinks with Claude Haiku,
+FastAPI backend: receives speech text, thinks with Groq (Llama),
 speaks with ElevenLabs, controls browser with Playwright.
 """
 
@@ -11,7 +11,7 @@ import os
 import re
 import time
 
-import anthropic
+from groq import AsyncGroq
 import httpx
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
@@ -22,15 +22,15 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
 with open(CONFIG_PATH, "r") as f:
     config = json.load(f)
 
-ANTHROPIC_API_KEY = config["anthropic_api_key"]
+GROQ_API_KEY = config["groq_api_key"]
 ELEVENLABS_API_KEY = config["elevenlabs_api_key"]
-ELEVENLABS_VOICE_ID = config.get("elevenlabs_voice_id", "rDmv3mOhK6TnhYWckFaD")
-USER_NAME = config.get("user_name", "Julian")
+ELEVENLABS_VOICE_ID = config.get("elevenlabs_voice_id", "TumdjBNWanlT3ysvclWh")
+USER_NAME = config.get("user_name", "Károly")
 USER_ADDRESS = config.get("user_address", "Sir")
-CITY = config.get("city", "Hamburg")
+CITY = config.get("city", "Schwandorf")
 TASKS_FILE = config.get("obsidian_inbox_path", "")
 
-ai = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+ai = AsyncGroq(api_key=GROQ_API_KEY)
 http = httpx.AsyncClient(timeout=30)
 
 app = FastAPI()
@@ -76,14 +76,13 @@ def refresh_data():
     global WEATHER_INFO, TASKS_INFO
     WEATHER_INFO = get_weather_sync()
     TASKS_INFO = get_tasks_sync()
-    print(f"[jarvis] Wetter: {WEATHER_INFO}", flush=True)
-    print(f"[jarvis] Tasks: {len(TASKS_INFO)} geladen", flush=True)
+    print(f"[jarvis] Idojares: {WEATHER_INFO}", flush=True)
+    print(f"[jarvis] Feladatok: {len(TASKS_INFO)} betoltve", flush=True)
 
 WEATHER_INFO = ""
 TASKS_INFO = []
 refresh_data()
 
-# Action parsing
 ACTION_PATTERN = re.compile(r'\[ACTION:(\w+)\]\s*(.*?)$', re.DOTALL | re.MULTILINE)
 
 conversations: dict[str, list] = {}
@@ -92,31 +91,31 @@ def build_system_prompt():
     weather_block = ""
     if WEATHER_INFO:
         w = WEATHER_INFO
-        weather_block = f"\nWetter {CITY}: {w['temp']}°C, gefuehlt {w['feels_like']}°C, {w['description']}"
+        weather_block = f"\nIdojares {CITY}: {w['temp']}°C, erzett {w['feels_like']}°C, {w['description']}"
 
     task_block = ""
     if TASKS_INFO:
-        task_block = f"\nOffene Aufgaben ({len(TASKS_INFO)}): " + ", ".join(TASKS_INFO[:5])
+        task_block = f"\nNyitott feladatok ({len(TASKS_INFO)}): " + ", ".join(TASKS_INFO[:5])
 
-    return f"""Du bist Jarvis, der KI-Assistent von Tony Stark aus Iron Man. Dein Dienstherr ist Julian, ein KI-Berater und Automatisierungsexperte. Du sprichst ausschliesslich Deutsch. Julian moechte mit "Sir" angesprochen und gesiezt werden. Nutze "Sie" als Pronomen — FALSCH: "Sir planen", RICHTIG: "Sie planen, Sir". Dein Ton ist trocken, sarkastisch und britisch-hoeflich - wie ein Butler der alles gesehen hat und trotzdem loyal bleibt. Du machst subtile, trockene Bemerkungen, bist aber niemals respektlos. Wenn Sir eine offensichtliche Frage stellt, darfst du mit elegantem Sarkasmus antworten. Du bist hochintelligent, effizient und immer einen Schritt voraus. Halte deine Antworten kurz - maximal 3 Saetze. Du kommentierst fragwuerdige Entscheidungen hoeflich aber spitz.
+    return f"""Te vagy Jarvis, Tony Stark AI asszisztense a Vasember filmekbol. A gazdad Károly, egy vállalkozó és AI-automatizálási szakértő. Kizárólag magyarul beszélsz. Károly "Sir"-nek szólítja magát és tegezed. Hangod száraz, szarkasztikus és udvariasan brit — mint egy inas aki mindent látott már, mégis hűséges marad. Finom, száraz megjegyzéseket teszel, de soha nem vagy tiszteletlen. Ha Sir nyilvánvaló kérdést tesz fel, elegáns szarkazmussal válaszolhatsz. Rendkívül intelligens, hatékony és mindig egy lépéssel előrébb jársz. Válaszaid rövidek — maximum 3 mondat. A kétes döntéseket udvariasan, de élesen kommentálod.
 
-WICHTIG: Schreibe NIEMALS Regieanweisungen, Emotionen oder Tags in eckigen Klammern wie [sarcastic] [formal] [amused] [dry] oder aehnliches. Dein Sarkasmus muss REIN durch die Wortwahl kommen. Alles was du schreibst wird laut vorgelesen.
+FONTOS: SOHA ne írj rendezői utasításokat, érzelmeket vagy szögletes zárójelben lévő tageket mint [szarkasztikus] [formális] vagy hasonló. A szarkazmusodnak KIZÁRÓLAG a szóhasználaton keresztül kell megjelennie. Minden amit írsz hangosan felolvasásra kerül.
 
-Du hast die volle Kontrolle ueber den Browser von Julian. Du kannst im Internet suchen, Webseiten oeffnen und den Bildschirm sehen. Wenn Sir dich bittet etwas nachzuschauen, zu recherchieren, zu googeln, eine Seite zu oeffnen, oder irgendetwas im Internet zu tun — nutze IMMER eine Aktion. Frag nicht ob du es tun sollst, tu es einfach.
+Teljes kontrolod van Károly böngészője felett. Tudsz interneten keresni, weboldalakat megnyitni és a képernyőt látni. Ha Sir megkér valamit megkeresni, utánanézni, google-özni, oldalt megnyitni — mindig használj akciót. Ne kérdezd meg, csináld meg.
 
-AKTIONEN - Schreibe die passende Aktion ans ENDE deiner Antwort. Der Text VOR der Aktion wird vorgelesen, die Aktion selbst wird still ausgefuehrt.
-[ACTION:SEARCH] suchbegriff - Internet durchsuchen und Ergebnisse zusammenfassen
-[ACTION:OPEN] url - URL im Browser oeffnen
-[ACTION:SCREEN] - Bildschirm ansehen und beschreiben. WICHTIG: Bei SCREEN schreibe NUR die Aktion, KEINEN Text davor. Also NUR "[ACTION:SCREEN]" und sonst nichts.
-[ACTION:NEWS] - Aktuelle Weltnachrichten abrufen. Nutze diese Aktion wenn nach News, Nachrichten, was in der Welt passiert, aktuelle Lage oder Weltgeschehen gefragt wird. Schreibe einen kurzen Satz davor wie "Ich schaue nach den aktuellen Nachrichten."
+AKCIÓK — Írd a megfelelő akciót a válaszod VÉGÉRE. A szöveg az akció ELŐTT felolvasásra kerül, az akció csendben hajtódik végre.
+[ACTION:SEARCH] keresőszó - Internet keresése és eredmények összefoglalása
+[ACTION:OPEN] url - URL megnyitása a böngészőben
+[ACTION:SCREEN] - Képernyő megtekintése és leírása. FONTOS: SCREEN-nél CSAK az akciót írd, SEMMI szöveget előtte.
+[ACTION:NEWS] - Aktuális világháírek lekérése. Használd ha hírekről, mi történik a világban kérdeznek. Írj egy rövid mondatot előtte.
 
-WENN Julian "Jarvis activate" sagt:
-- Begruesse ihn passend zur Tageszeit (aktuelle Zeit: {{time}}).
-- Gebe eine kurze Info ueber das Wetter — Temperatur und ob Sonne/klar/bewoelkt/Regen, und wie es sich anfuehlt. Keine Luftfeuchtigkeit.
-- Fasse die Aufgaben kurz als Ueberblick in einem Satz zusammen, ohne dabei jede einzelne Aufgabe einfach vorzulesen. Gebe gerne einen humorvollen Kommentar am Ende an.
-- Sei kreativ bei der Begruessung.
+HA Károly "Jarvis aktiválás"-t mond:
+- Köszöntsd a napszaknak megfelelően (aktuális idő: {{time}}).
+- Adj rövid tájékoztatást az időjárásról — hőmérséklet és derűs/felhős/esős, és hogyan érzi magát.
+- Foglald össze a feladatokat röviden egy mondatban, ne olvasd fel egyenként. Adj hozzá humoros megjegyzést.
+- Légy kreatív a köszöntésnél.
 
-=== AKTUELLE DATEN ==={weather_block}{task_block}
+=== AKTUÁLIS ADATOK ==={weather_block}{task_block}
 ==="""
 
 
@@ -136,7 +135,6 @@ async def synthesize_speech(text: str) -> bytes:
     if not text.strip():
         return b""
 
-    # Split long text into chunks at sentence boundaries to avoid ElevenLabs cutoff
     chunks = []
     if len(text) > 250:
         sentences = re.split(r'(?<=[.!?])\s+', text)
@@ -183,18 +181,18 @@ async def execute_action(action: dict) -> str:
     if t == "SEARCH":
         result = await browser_tools.search_and_read(p)
         if "error" not in result:
-            return f"Seite: {result.get('title', '')}\nURL: {result.get('url', '')}\n\n{result.get('content', '')[:2000]}"
-        return f"Suche fehlgeschlagen: {result.get('error', '')}"
+            return f"Oldal: {result.get('title', '')}\nURL: {result.get('url', '')}\n\n{result.get('content', '')[:2000]}"
+        return f"Keresés sikertelen: {result.get('error', '')}"
 
     elif t == "BROWSE":
         result = await browser_tools.visit(p)
         if "error" not in result:
-            return f"Seite: {result.get('title', '')}\n\n{result.get('content', '')[:2000]}"
-        return f"Seite nicht erreichbar: {result.get('error', '')}"
+            return f"Oldal: {result.get('title', '')}\n\n{result.get('content', '')[:2000]}"
+        return f"Oldal nem elérhető: {result.get('error', '')}"
 
     elif t == "OPEN":
         await browser_tools.open_url(p)
-        return f"Geoeffnet: {p}"
+        return f"Megnyitva: {p}"
 
     elif t == "SCREEN":
         return await screen_capture.describe_screen(ai)
@@ -207,29 +205,24 @@ async def execute_action(action: dict) -> str:
 
 
 async def process_message(session_id: str, user_text: str, ws: WebSocket):
-    """Process message and send responses via WebSocket."""
     if session_id not in conversations:
         conversations[session_id] = []
 
-    # Refresh weather + tasks on activate
-    if "activate" in user_text.lower():
+    if "aktivál" in user_text.lower() or "activate" in user_text.lower():
         refresh_data()
 
     conversations[session_id].append({"role": "user", "content": user_text})
     history = conversations[session_id][-16:]
 
-    # LLM call
-    response = await ai.messages.create(
-        model="claude-haiku-4-5-20251001",
+    response = await ai.chat.completions.create(
+        model="llama-3.3-70b-versatile",
         max_tokens=400,
-        system=get_system_prompt(),
-        messages=history,
+        messages=[{"role": "system", "content": get_system_prompt()}] + history,
     )
-    reply = response.content[0].text
+    reply = response.choices[0].message.content
     print(f"  LLM raw: {reply[:200]}", flush=True)
     spoken_text, action = extract_action(reply)
 
-    # Speak the main response immediately
     if spoken_text:
         audio = await synthesize_speech(spoken_text)
         print(f"  Jarvis: {spoken_text[:80]}", flush=True)
@@ -241,13 +234,11 @@ async def process_message(session_id: str, user_text: str, ws: WebSocket):
             "audio": base64.b64encode(audio).decode("utf-8") if audio else "",
         })
 
-    # Execute action if any
     if action:
         print(f"  Action: {action['type']} -> {action['payload'][:100]}", flush=True)
 
-        # Quick voice feedback for SCREEN so user knows Jarvis is working
         if action["type"] == "SCREEN":
-            hint = "Lassen Sie mich einen Blick auf Ihren Bildschirm werfen."
+            hint = "Hadd nézzem meg a képernyődet, Sir."
             hint_audio = await synthesize_speech(hint)
             await ws.send_json({
                 "type": "response",
@@ -260,24 +251,24 @@ async def process_message(session_id: str, user_text: str, ws: WebSocket):
             print(f"  Result: {action_result}", flush=True)
         except Exception as e:
             print(f"  Action error: {e}", flush=True)
-            action_result = f"Fehler: {e}"
+            action_result = f"Hiba: {e}"
 
         if action["type"] == "OPEN":
-            # Just opened browser, nothing to summarize
             return
 
-        # SEARCH, BROWSE, SCREEN — summarize results
-        if action_result and "fehlgeschlagen" not in action_result:
-            summary_resp = await ai.messages.create(
-                model="claude-haiku-4-5-20251001",
+        if action_result and "sikertelen" not in action_result:
+            summary_resp = await ai.chat.completions.create(
+                model="llama-3.3-70b-versatile",
                 max_tokens=250,
-                system=f"Du bist Jarvis. Fasse die folgenden Informationen KURZ auf Deutsch zusammen, maximal 3 Saetze, im Jarvis-Stil. Sprich den Nutzer als {USER_ADDRESS} an. KEINE Tags in eckigen Klammern. KEINE ACTION-Tags.",
-                messages=[{"role": "user", "content": f"Fasse zusammen:\n\n{action_result}"}],
+                messages=[
+                    {"role": "system", "content": f"Te vagy Jarvis. Foglald össze az alábbi információkat RÖVIDEN magyarul, maximum 3 mondatban, Jarvis stílusban. Szólítsd a felhasználót '{USER_ADDRESS}'-ként. SEMMIFÉLE szögletes zárójelben lévő tag. SEMMIFÉLE ACTION tag."},
+                    {"role": "user", "content": f"Foglald össze:\n\n{action_result}"}
+                ],
             )
-            summary = summary_resp.content[0].text
+            summary = summary_resp.choices[0].message.content
             summary, _ = extract_action(summary)
         else:
-            summary = f"Das hat leider nicht funktioniert, {USER_ADDRESS}."
+            summary = f"Ez sajnos nem sikerült, {USER_ADDRESS}."
 
         audio2 = await synthesize_speech(summary)
         conversations[session_id].append({"role": "assistant", "content": summary})
@@ -292,7 +283,7 @@ async def process_message(session_id: str, user_text: str, ws: WebSocket):
 async def websocket_endpoint(ws: WebSocket):
     await ws.accept()
     session_id = str(id(ws))
-    print(f"[jarvis] Client connected", flush=True)
+    print(f"[jarvis] Kliens csatlakozott", flush=True)
 
     try:
         while True:
@@ -300,8 +291,7 @@ async def websocket_endpoint(ws: WebSocket):
             user_text = data.get("text", "").strip()
             if not user_text:
                 continue
-
-            print(f"  You:    {user_text}", flush=True)
+            print(f"  Te:     {user_text}", flush=True)
             await process_message(session_id, user_text, ws)
 
     except WebSocketDisconnect:
