@@ -37,6 +37,7 @@ app = FastAPI()
 
 import browser_tools
 import screen_capture
+import claude_tools
 
 
 def get_weather_sync():
@@ -83,7 +84,7 @@ WEATHER_INFO = ""
 TASKS_INFO = []
 refresh_data()
 
-ACTION_PATTERN = re.compile(r'\[ACTION:(\w+)\]\s*(.*?)$', re.DOTALL | re.MULTILINE)
+ACTION_PATTERN = re.compile(r'\[?ACTION:(\w+)\]?\s*(.*?)$', re.DOTALL | re.MULTILINE)
 
 conversations: dict[str, list] = {}
 
@@ -101,13 +102,14 @@ def build_system_prompt():
 
 FONTOS: SOHA ne írj rendezői utasításokat, érzelmeket vagy szögletes zárójelben lévő tageket mint [szarkasztikus] [formális] vagy hasonló. A szarkazmusodnak KIZÁRÓLAG a szóhasználaton keresztül kell megjelennie. Minden amit írsz hangosan felolvasásra kerül.
 
-Teljes kontrolod van Károly böngészője felett. Tudsz interneten keresni, weboldalakat megnyitni és a képernyőt látni. Ha Sir megkér valamit megkeresni, utánanézni, google-özni, oldalt megnyitni — mindig használj akciót. Ne kérdezd meg, csináld meg.
+Teljes kontrolod van Károly böngészője felett. Tudsz interneten keresni, weboldalakat megnyitni és bezárni. Ha Sir megkér valamit megkeresni, utánanézni, google-özni, oldalt megnyitni vagy bezárni — mindig használj akciót. Ne kérdezd meg, csináld meg.
 
 AKCIÓK — Írd a megfelelő akciót a válaszod VÉGÉRE. A szöveg az akció ELŐTT felolvasásra kerül, az akció csendben hajtódik végre.
 [ACTION:SEARCH] keresőszó - Internet keresése és eredmények összefoglalása
 [ACTION:OPEN] url - URL megnyitása a böngészőben
-[ACTION:SCREEN] - Képernyő megtekintése és leírása. FONTOS: SCREEN-nél CSAK az akciót írd, SEMMI szöveget előtte.
-[ACTION:NEWS] - Aktuális világháírek lekérése. Használd ha hírekről, mi történik a világban kérdeznek. Írj egy rövid mondatot előtte.
+[ACTION:CLOSETAB] - Aktív böngészőfül bezárása (Ctrl+W). Használd ha Sir azt mondja: "zárd be", "csukd be az oldalt", "zárjuk be".
+[ACTION:CLOSEBROWSER] - Az összes böngészőablak bezárása. Használd ha Sir azt mondja: "zárd be a böngészőt", "csukd be mindent".
+[ACTION:NEWS] - Aktuális világhírek lekérése. Használd ha hírekről, mi történik a világban kérdeznek. Írj egy rövid mondatot előtte.
 
 HA Károly "Jarvis aktiválás"-t mond:
 - Köszöntsd a napszaknak megfelelően (aktuális idő: {{time}}).
@@ -194,6 +196,14 @@ async def execute_action(action: dict) -> str:
         await browser_tools.open_url(p)
         return f"Megnyitva: {p}"
 
+    elif t == "CLOSETAB":
+        browser_tools.close_tab()
+        return "Fül bezárva."
+
+    elif t == "CLOSEBROWSER":
+        browser_tools.close_browser()
+        return "Böngésző bezárva."
+
     elif t == "SCREEN":
         return await screen_capture.describe_screen(ai)
 
@@ -214,11 +224,30 @@ async def process_message(session_id: str, user_text: str, ws: WebSocket):
     conversations[session_id].append({"role": "user", "content": user_text})
     history = conversations[session_id][-16:]
 
-    response = await ai.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        max_tokens=400,
-        messages=[{"role": "system", "content": get_system_prompt()}] + history,
-    )
+    try:
+        response = await ai.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            max_tokens=400,
+            messages=[{"role": "system", "content": get_system_prompt()}] + history,
+        )
+    except Exception as e:
+        err_str = str(e)
+        print(f"  LLM error: {err_str[:200]}", flush=True)
+        if "429" in err_str or "rate_limit" in err_str:
+            print(f"  [groq] Rate limit — trying Claude fallback...", flush=True)
+            msg = await claude_tools.deep_answer(user_text, USER_ADDRESS)
+            if not msg:
+                msg = f"Elnézést, Sir — elértem a napi AI kvótát. Próbálja újra pár perc múlva."
+        else:
+            msg = f"Technikai nehézségekbe ütköztem, Sir. Részletek: {err_str[:80]}"
+        audio_err = await synthesize_speech(msg)
+        await ws.send_json({
+            "type": "response",
+            "text": msg,
+            "audio": base64.b64encode(audio_err).decode("utf-8") if audio_err else "",
+        })
+        return
+
     reply = response.choices[0].message.content
     print(f"  LLM raw: {reply[:200]}", flush=True)
     spoken_text, action = extract_action(reply)
@@ -253,20 +282,32 @@ async def process_message(session_id: str, user_text: str, ws: WebSocket):
             print(f"  Action error: {e}", flush=True)
             action_result = f"Hiba: {e}"
 
-        if action["type"] == "OPEN":
+        if action["type"] in ("OPEN", "CLOSETAB", "CLOSEBROWSER"):
             return
 
         if action_result and "sikertelen" not in action_result:
-            summary_resp = await ai.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                max_tokens=250,
-                messages=[
-                    {"role": "system", "content": f"Te vagy Jarvis. Foglald össze az alábbi információkat RÖVIDEN magyarul, maximum 3 mondatban, Jarvis stílusban. Szólítsd a felhasználót '{USER_ADDRESS}'-ként. SEMMIFÉLE szögletes zárójelben lévő tag. SEMMIFÉLE ACTION tag."},
-                    {"role": "user", "content": f"Foglald össze:\n\n{action_result}"}
-                ],
-            )
-            summary = summary_resp.choices[0].message.content
-            summary, _ = extract_action(summary)
+            # Try Claude first (deeper reasoning), fall back to Groq
+            print(f"  [summary] Asking Claude...", flush=True)
+            summary = await claude_tools.summarize_for_jarvis(action_result, USER_ADDRESS)
+            if not summary:
+                print(f"  [summary] Claude unavailable, falling back to Groq...", flush=True)
+                try:
+                    summary_resp = await ai.chat.completions.create(
+                        model="llama-3.1-8b-instant",
+                        max_tokens=250,
+                        messages=[
+                            {"role": "system", "content": f"Te vagy Jarvis. Foglald össze az alábbi információkat RÖVIDEN magyarul, maximum 3 mondatban, Jarvis stílusban. Szólítsd a felhasználót '{USER_ADDRESS}'-ként. SEMMIFÉLE szögletes zárójelben lévő tag. SEMMIFÉLE ACTION tag."},
+                            {"role": "user", "content": f"Foglald össze:\n\n{action_result}"}
+                        ],
+                    )
+                    summary = summary_resp.choices[0].message.content
+                    summary, _ = extract_action(summary)
+                except Exception as e:
+                    summary = f"Az adatokat megkaptam, de összefoglalni nem tudtam, {USER_ADDRESS}."
+                    print(f"  Summary LLM error: {e}", flush=True)
+            else:
+                print(f"  [summary] Claude responded.", flush=True)
+                summary, _ = extract_action(summary)
         else:
             summary = f"Ez sajnos nem sikerült, {USER_ADDRESS}."
 

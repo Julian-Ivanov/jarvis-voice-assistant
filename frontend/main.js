@@ -2,11 +2,13 @@
 const orb = document.getElementById('orb');
 const status = document.getElementById('status');
 const transcript = document.getElementById('transcript');
+const pauseBtn = document.getElementById('pauseBtn');
 
 let ws;
 let audioQueue = [];
 let isPlaying = false;
 let audioUnlocked = false;
+let isPaused = false;
 
 // Unlock audio on ANY user interaction
 function unlockAudio() {
@@ -26,9 +28,9 @@ function connect() {
     ws = new WebSocket(`ws://${location.host}/ws`);
     ws.onopen = () => {
         console.log('[jarvis] WebSocket connected');
-        status.textContent = 'Klicke einmal irgendwo, dann spricht Jarvis.';
+        status.textContent = 'Kattints egyszer, majd szólj Jarvishoz.';
         setOrbState('thinking');
-        ws.send(JSON.stringify({ text: 'Jarvis activate' }));
+        ws.send(JSON.stringify({ text: 'Jarvis aktiválás' }));
     };
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
@@ -45,7 +47,7 @@ function connect() {
         }
     };
     ws.onclose = () => {
-        status.textContent = 'Verbindung verloren...';
+        status.textContent = 'Kapcsolat megszakadt...';
         setTimeout(connect, 3000);
     };
 }
@@ -58,6 +60,11 @@ function queueAudio(base64Audio) {
 function playNext() {
     if (audioQueue.length === 0) {
         isPlaying = false;
+        if (isPaused) {
+            setOrbState('paused');
+            status.textContent = 'Szüneteltetve';
+            return;
+        }
         setOrbState('listening');
         status.textContent = '';
         setTimeout(startListening, 500);
@@ -80,7 +87,7 @@ function playNext() {
     audio.onerror = () => { URL.revokeObjectURL(url); playNext(); };
     audio.play().catch(err => {
         console.warn('[jarvis] Autoplay blocked, waiting for click...');
-        status.textContent = 'Klicke irgendwo damit Jarvis sprechen kann.';
+        status.textContent = 'Kattints valahova hogy Jarvis tudjon beszélni.';
         setOrbState('idle');
         // Wait for click then retry
         document.addEventListener('click', function retry() {
@@ -100,7 +107,7 @@ let isListening = false;
 
 if (SpeechRecognition) {
     recognition = new SpeechRecognition();
-    recognition.lang = 'de-DE';
+    recognition.lang = 'hu-HU';
     recognition.continuous = true;
     recognition.interimResults = false;
 
@@ -111,7 +118,7 @@ if (SpeechRecognition) {
             if (text) {
                 addTranscript('user', text);
                 setOrbState('thinking');
-                status.textContent = 'Jarvis denkt nach...';
+                status.textContent = 'Jarvis gondolkodik...';
                 ws.send(JSON.stringify({ text }));
             }
         }
@@ -119,11 +126,12 @@ if (SpeechRecognition) {
 
     recognition.onend = () => {
         isListening = false;
-        if (!isPlaying) setTimeout(startListening, 300);
+        if (!isPlaying && !isPaused) setTimeout(startListening, 300);
     };
 
     recognition.onerror = (event) => {
         isListening = false;
+        if (isPaused) return;
         if (event.error === 'no-speech' || event.error === 'aborted') {
             if (!isPlaying) setTimeout(startListening, 300);
         } else {
@@ -133,7 +141,7 @@ if (SpeechRecognition) {
 }
 
 function startListening() {
-    if (isPlaying) return;
+    if (isPlaying || isPaused) return;
     try {
         recognition.start();
         isListening = true;
@@ -142,13 +150,47 @@ function startListening() {
     } catch(e) {}
 }
 
+function togglePause() {
+    isPaused = !isPaused;
+
+    if (isPaused) {
+        // Stop everything
+        if (isListening) {
+            recognition.stop();
+            isListening = false;
+        }
+        audioQueue = [];
+        isPlaying = false;
+        setOrbState('paused');
+        pauseBtn.textContent = '▶';
+        pauseBtn.classList.add('paused');
+        pauseBtn.title = 'Folytatás';
+        status.textContent = 'Szüneteltetve';
+    } else {
+        // Resume listening (no greeting, just start)
+        pauseBtn.textContent = '⏸';
+        pauseBtn.classList.remove('paused');
+        pauseBtn.title = 'Szünet';
+        status.textContent = '';
+        startListening();
+    }
+}
+
+pauseBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    togglePause();
+});
+
 orb.addEventListener('click', () => {
+    if (isPaused) {
+        togglePause();
+        return;
+    }
     if (isPlaying) return;
     if (isListening) {
         recognition.stop();
         isListening = false;
         setOrbState('idle');
-        status.textContent = 'Pausiert. Klicke zum Fortsetzen.';
     } else {
         startListening();
     }
@@ -159,7 +201,7 @@ function setOrbState(state) { orb.className = state; }
 function addTranscript(role, text) {
     const div = document.createElement('div');
     div.className = role;
-    div.textContent = role === 'user' ? `Du: ${text}` : `Jarvis: ${text}`;
+    div.textContent = role === 'user' ? `Te: ${text}` : `Jarvis: ${text}`;
     transcript.appendChild(div);
     transcript.scrollTop = transcript.scrollHeight;
 }

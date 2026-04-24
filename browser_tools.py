@@ -127,11 +127,59 @@ async def fetch_news() -> str:
 
 
 async def open_url(url: str):
-    """Open URL in user's default browser (non-blocking)."""
+    """Open URL in Chrome (non-blocking)."""
     import asyncio
+    # Add https:// if missing
+    if not url.startswith("http://") and not url.startswith("https://"):
+        url = "https://" + url
     loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, webbrowser.open, url)
+    await loop.run_in_executor(
+        None,
+        lambda: subprocess.Popen(f'start "" "{url}"', shell=True)
+    )
     return {"success": True, "url": url}
+
+
+def close_tab():
+    """Close the current/active browser tab via Ctrl+W (Windows SendKeys)."""
+    try:
+        subprocess.run([
+            "powershell", "-Command",
+            """
+            $chrome = Get-Process -Name 'chrome','msedge','firefox' -ErrorAction SilentlyContinue |
+                Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -Last 1
+            if ($chrome) {
+                Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public class WinHelper {
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+}
+'@
+                [WinHelper]::SetForegroundWindow($chrome.MainWindowHandle)
+                Start-Sleep -Milliseconds 300
+                Add-Type -AssemblyName System.Windows.Forms
+                [System.Windows.Forms.SendKeys]::SendWait("^w")
+            }
+            """
+        ], capture_output=True, timeout=5)
+    except Exception:
+        pass
+
+
+def close_browser():
+    """Close all Chrome/Edge browser windows."""
+    try:
+        subprocess.run(
+            ["taskkill", "/f", "/im", "chrome.exe"],
+            capture_output=True, timeout=5
+        )
+        subprocess.run(
+            ["taskkill", "/f", "/im", "msedge.exe"],
+            capture_output=True, timeout=5
+        )
+    except Exception:
+        pass
 
 
 async def close():

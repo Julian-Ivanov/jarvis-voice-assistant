@@ -21,10 +21,10 @@ WORKSPACE_PATH = config["workspace_path"]
 SCRIPT_PATH = os.path.join(WORKSPACE_PATH, "scripts", "launch-session.ps1")
 
 SAMPLE_RATE = 44100
-BLOCK_SIZE = 1024
-THRESHOLD = 0.15       # RMS volume spike threshold — lower = more sensitive
-MIN_GAP = 0.1          # Minimum seconds between claps
-MAX_GAP = 1.2          # Maximum seconds between claps — more time for second clap
+BLOCK_SIZE = 512
+THRESHOLD = 0.03       # RMS volume spike threshold — lower = more sensitive
+MIN_GAP = 0.05         # Minimum seconds between claps
+MAX_GAP = 1.5          # Maximum seconds between claps — more time for second clap
 COOLDOWN = 3.0         # Seconds to ignore after trigger fires
 
 last_clap_time = 0.0
