@@ -3,17 +3,133 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>J.A.R.V.I.S.</title>
+    <title>Jarvis</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div id="app">
-        <div id="orb-container">
-            <div id="orb" class="idle"></div>
+    <!-- Subtle ambient blob (decorative, behind everything) -->
+    <div class="ambient" aria-hidden="true"></div>
+
+    <!-- ============= Start overlay (Chrome autoplay gate) ============= -->
+    <div id="start-overlay">
+        <div class="start-card">
+            <div class="start-meta">
+                <span class="dot"></span>
+                <span>READY</span>
+            </div>
+
+            <div class="start-orb">
+                <div class="start-pulse"></div>
+                <div class="start-orb-core"></div>
+            </div>
+
+            <h1 class="start-title">Jarvis.</h1>
+            <p class="start-sub">Klicke irgendwo, um die Sitzung zu starten. Mikrofon erlauben, sobald Chrome fragt.</p>
+
+            <button class="start-prompt" type="button">
+                <span>Sitzung starten</span>
+                <span class="start-prompt-arrow">→</span>
+            </button>
         </div>
-        <div id="status">Klicke den Orb um zu sprechen</div>
-        <div id="transcript"></div>
     </div>
+
+    <!-- ============= Masthead ============= -->
+    <header class="masthead">
+        <div class="mast-left">
+            <span class="mast-mark">JARVIS</span>
+            <span class="mast-divider"></span>
+            <span class="mast-meta">v2.0 · personal interface</span>
+        </div>
+
+        <div class="mast-right">
+            <div class="status-pill">
+                <span class="status-dot"></span>
+                <span id="hud-status">SYSTEM ONLINE</span>
+            </div>
+            <span id="hud-time" class="mast-time">--:--:--</span>
+        </div>
+    </header>
+
+    <!-- ============= Stage ============= -->
+    <main class="stage">
+        <!-- LEFT: orb + state -->
+        <section class="orb-column">
+            <div class="state-label">
+                <span class="state-kicker">STATE</span>
+                <span class="state-current" id="state-current">IDLE</span>
+            </div>
+
+            <div class="orb-stage">
+                <!-- thin static guide rings (kept as .ring* for JS state hooks) -->
+                <div class="ring ring-outer"></div>
+                <div class="ring ring-mid"></div>
+                <div class="ring ring-inner"></div>
+
+                <!-- audio visualizer canvas -->
+                <canvas id="visualizer" width="560" height="560"></canvas>
+
+                <!-- the orb -->
+                <div id="orb-container" role="button" tabindex="0" aria-label="Jarvis aktivieren oder unterbrechen">
+                    <div id="orb" class="idle">
+                        <div class="orb-core"></div>
+                        <div class="orb-aura"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="status">Klicke irgendwo, um zu sprechen.</div>
+
+            <div class="hint-row">
+                <kbd>SPACE</kbd>
+                <span>oder Klick zum Unterbrechen, während Jarvis spricht</span>
+            </div>
+        </section>
+
+        <!-- RIGHT: transcript + meta -->
+        <aside class="rail">
+            <div class="rail-block">
+                <div class="rail-head">
+                    <span class="rail-num">01</span>
+                    <span class="rail-title">Conversation</span>
+                    <span class="rail-live">
+                        <span class="rail-live-dot"></span>
+                        LIVE
+                    </span>
+                </div>
+                <div id="transcript">
+                    <div class="empty-state">
+                        <span class="empty-pip"></span>
+                        <span>Warte auf Eingabe — sprich, sobald die Anzeige grün leuchtet.</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rail-block compact">
+                <div class="rail-head small">
+                    <span class="rail-num">02</span>
+                    <span class="rail-title">Session</span>
+                </div>
+                <dl class="kv-list">
+                    <div><dt>Engine</dt><dd>Claude 4.5</dd></div>
+                    <div><dt>Voice</dt><dd id="hud-backend">Katja</dd></div>
+                    <div><dt>Locale</dt><dd>DE-DE</dd></div>
+                </dl>
+            </div>
+        </aside>
+    </main>
+
+    <!-- ============= Footer ============= -->
+    <footer class="dock">
+        <span>Set in Geist &amp; Geist Mono</span>
+        <span class="dock-divider"></span>
+        <span>Press anywhere to interrupt</span>
+        <span class="dock-divider"></span>
+        <span class="dock-tag">— transcript saved locally —</span>
+    </footer>
+
     <script src="/static/main.js"></script>
 </body>
 </html>
