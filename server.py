@@ -53,6 +53,11 @@ import browser_tools
 import screen_capture
 import email_tools
 import instagram_tools
+import wordpress_tools
+import whatsapp_tools
+import calendar_tools
+import obsidian_tools
+import translation_tools
 
 
 def get_weather_sync():
@@ -188,12 +193,41 @@ AKTIONEN — schreibe sie ans ENDE deiner Antwort. Text DAVOR wird gesprochen, d
 [ACTION:OPEN] url — URL im Browser oeffnen
 [ACTION:SCREEN] — Bildschirm ansehen (NUR diese Zeile, gar kein Text davor)
 [ACTION:NEWS] — Aktuelle Weltnachrichten
-[ACTION:EMAIL_READ] — Ungelesene Mails aus Apple Mail vorlesen
-[ACTION:EMAIL_DRAFT] empfaenger||betreff||inhalt — Mail-Entwurf in Apple Mail (NICHT versenden)
+[ACTION:EMAIL_READ] — Alte Funktion: ungelesene Mails vorlesen (Kurzform)
+[ACTION:EMAIL_LIST] — Liste der ungelesenen Mails mit IDs (fuer spaetere Aktionen)
+[ACTION:EMAIL_GET] msg_id — Eine bestimmte Mail komplett lesen
+[ACTION:EMAIL_DRAFT] empfaenger||betreff||inhalt — Neue Mail als Entwurf (NICHT senden)
+[ACTION:EMAIL_DRAFT_REPLY] msg_id||inhalt — Antwort auf Mail als Entwurf (NICHT senden)
+[ACTION:EMAIL_SEND] draft_id — Entwurf senden. NUR nach AUSDRUECKLICHER Bestaetigung des Boss ("ja senden", "ja"). Niemals von selbst.
+[ACTION:EMAIL_DRAFTS] — Liste aller Entwuerfe
+[ACTION:EMAIL_SEARCH] suchbegriff — Mails durchsuchen
 [ACTION:IG_OPEN] section — Instagram. section: "home" / "dms" / "notifications" / "explore" / Username
+[ACTION:WHATSAPP_OPEN] — WhatsApp Web oeffnen (erstmaliger QR-Scan noetig)
+[ACTION:WHATSAPP_UNREAD] — Ungelesene WhatsApp-Chats anzeigen
+[ACTION:WHATSAPP_READ] kontakt — Letzte Nachrichten eines Kontakts lesen
+[ACTION:WHATSAPP_SEND] kontakt||text — Nachricht senden. NUR nach Bestaetigung.
+[ACTION:CAL_TODAY] — Heutige Termine
+[ACTION:CAL_UPCOMING] tage — Termine der naechsten N Tage (default 7)
+[ACTION:CAL_CREATE] titel||YYYY-MM-DD HH:MM||dauer_minuten — Termin erstellen
+[ACTION:WP_SITES] — Liste registrierter WordPress-Sites
+[ACTION:WP_ADD] domain||url||user||app_password||true|false — Neue Site registrieren (nach Boss-Diktat)
+[ACTION:WP_DRAFT_POST] domain||titel||inhalt — Post-Entwurf erstellen
+[ACTION:WP_PUBLISH] domain||post_id — Post veroeffentlichen. NUR nach Bestaetigung.
+[ACTION:WP_COMMENTS] domain — Offene Kommentare
+[ACTION:WP_MODERATE] domain||comment_id||approve|hold|spam|trash
+[ACTION:WP_PRODUCTS] domain — Produktliste (nur mit WooCommerce)
+[ACTION:WP_UPDATE_PRICE] domain||product_id||preis[||sale_preis] — Produktpreis aendern
+[ACTION:NOTE] inhalt — Notiz in Obsidian-Inbox speichern
+[ACTION:TRANSLATE] de|en|fr||text — Uebersetzung
 [ACTION:DELEGATE] auftrag — Schwere Kreation (Logo, Blog, PowerPoint, Bild). Vorher 2-3 Worte.
 
 REGEL: Wenn der Boss dich bittet etwas zu TUN (suchen, oeffnen, recherchieren, generieren, schreiben, ansehen) — frag nicht, mach es. Aktion wird IMMER an die letzte Zeile gehaengt.
+
+WICHTIG — SICHERHEITSREGEL FUER VERSAND:
+- Mails, WhatsApp-Nachrichten und WordPress-Veroeffentlichungen IMMER zuerst als ENTWURF erstellen.
+- Nach dem Entwurf den Inhalt KURZ vorlesen ("Entwurf an Klaus, Betreff X, Text Y. Senden?") und auf "ja"/"senden" warten.
+- ERST DANN [ACTION:EMAIL_SEND], [ACTION:WHATSAPP_SEND] oder [ACTION:WP_PUBLISH] ausfuehren.
+- Bei Unsicherheit: nicht senden. Lieber nochmal nachfragen.
 
 DATEN: {weather_block}{task_block} Aktuelle Zeit: {{time}}."""
 
@@ -243,12 +277,41 @@ ACTIONS — append to END of reply. Text BEFORE is spoken; the [ACTION:..] itsel
 [ACTION:OPEN] url — open URL in browser
 [ACTION:SCREEN] — view screen (ONLY this line, nothing else)
 [ACTION:NEWS] — current world news
-[ACTION:EMAIL_READ] — read unread mail from Apple Mail
-[ACTION:EMAIL_DRAFT] to||subject||body — draft mail in Apple Mail (NOT send)
+[ACTION:EMAIL_READ] — quick: read unread mail aloud
+[ACTION:EMAIL_LIST] — list unread with IDs (for follow-up actions)
+[ACTION:EMAIL_GET] msg_id — read one full message
+[ACTION:EMAIL_DRAFT] to||subject||body — new mail as draft (NOT send)
+[ACTION:EMAIL_DRAFT_REPLY] msg_id||body — draft reply (NOT send)
+[ACTION:EMAIL_SEND] draft_id — send draft. ONLY after explicit Boss confirmation ("yes send"). Never on your own.
+[ACTION:EMAIL_DRAFTS] — list all drafts
+[ACTION:EMAIL_SEARCH] query — search mail
 [ACTION:IG_OPEN] section — Instagram: "home" / "dms" / "notifications" / "explore" / username
+[ACTION:WHATSAPP_OPEN] — open WhatsApp Web (first time: QR scan)
+[ACTION:WHATSAPP_UNREAD] — list unread WhatsApp chats
+[ACTION:WHATSAPP_READ] contact — read last messages from a contact
+[ACTION:WHATSAPP_SEND] contact||text — send. ONLY after confirmation.
+[ACTION:CAL_TODAY] — today's events
+[ACTION:CAL_UPCOMING] days — events in next N days (default 7)
+[ACTION:CAL_CREATE] title||YYYY-MM-DD HH:MM||duration_minutes — create event
+[ACTION:WP_SITES] — list registered WordPress sites
+[ACTION:WP_ADD] domain||url||user||app_password||true|false — register a new site
+[ACTION:WP_DRAFT_POST] domain||title||body — create post draft
+[ACTION:WP_PUBLISH] domain||post_id — publish post. ONLY after confirmation.
+[ACTION:WP_COMMENTS] domain — pending comments
+[ACTION:WP_MODERATE] domain||comment_id||approve|hold|spam|trash
+[ACTION:WP_PRODUCTS] domain — product list (Woo only)
+[ACTION:WP_UPDATE_PRICE] domain||product_id||price[||sale_price]
+[ACTION:NOTE] body — append to Obsidian inbox
+[ACTION:TRANSLATE] de|en|fr||text — translate
 [ACTION:DELEGATE] task — heavy creation (logo, blog, PowerPoint, image). 2-3 words before.
 
 RULE: When the Boss asks you to DO something (search, open, research, generate, write, look at) — don't ask, just do it. The action ALWAYS goes on the last line.
+
+CRITICAL SAFETY RULE FOR SENDING:
+- Mails, WhatsApp messages and WordPress publishing must ALWAYS be drafted first.
+- After drafting, briefly read back ("Draft to Klaus, subject X, body Y. Send?") and wait for "yes"/"send".
+- ONLY THEN execute [ACTION:EMAIL_SEND], [ACTION:WHATSAPP_SEND], or [ACTION:WP_PUBLISH].
+- When in doubt: do not send. Ask again.
 
 DATA: {weather_block}{task_block} Current time: {{time}}."""
 
@@ -538,6 +601,170 @@ async def execute_action(action: dict) -> str:
 
     elif t == "IG_OPEN":
         return await instagram_tools.open_section(p)
+
+    # ============ Email (extended) ============
+    elif t == "EMAIL_LIST":
+        msgs = await email_tools.list_unread(limit=10)
+        if not msgs:
+            return "Keine ungelesenen Mails." if LANGUAGE == "de" else "No unread mail."
+        lines = [f"{i+1}. id={m['id']} — {m['from']} — {m['subject']}: {m['preview']}"
+                 for i, m in enumerate(msgs)]
+        return "\n".join(lines)
+
+    elif t == "EMAIL_GET":
+        msg = await email_tools.get_message(p.strip())
+        return f"From: {msg['from']}\nSubject: {msg['subject']}\nReceived: {msg['received']}\n\n{msg['body']}"
+
+    elif t == "EMAIL_DRAFT_REPLY":
+        # Payload: "msg_id||body"
+        parts = [s.strip() for s in p.split("||", 1)]
+        if len(parts) < 2:
+            return "Falsches Format. Brauche: msg_id||body" if LANGUAGE == "de" else "Wrong format. Need: msg_id||body"
+        d = await email_tools.draft_reply(parts[0], parts[1])
+        return f"Entwurf erstellt: id={d['draft_id']}, an {d['to']}, betreff '{d['subject']}'. Soll ich senden?"
+
+    elif t == "EMAIL_SEND":
+        # Payload: draft_id — only after explicit verbal confirmation from the Boss.
+        ok = await email_tools.send_draft(p.strip())
+        return ("Mail versendet." if LANGUAGE == "de" else "Mail sent.") if ok else "Versand fehlgeschlagen."
+
+    elif t == "EMAIL_DRAFTS":
+        drafts = await email_tools.list_drafts(limit=10)
+        if not drafts:
+            return "Keine Entwuerfe." if LANGUAGE == "de" else "No drafts."
+        return "\n".join(f"{i+1}. id={d['id']} an {d['to']}: {d['subject']}" for i, d in enumerate(drafts))
+
+    elif t == "EMAIL_SEARCH":
+        msgs = await email_tools.search_messages(p.strip(), limit=10)
+        if not msgs:
+            return "Keine Treffer." if LANGUAGE == "de" else "No matches."
+        return "\n".join(f"id={m['id']} {m['from']} — {m['subject']}: {m['preview']}" for m in msgs)
+
+    # ============ WordPress (multi-site) ============
+    elif t == "WP_SITES":
+        sites = wordpress_tools.list_sites()
+        return "Registrierte WP-Sites: " + ", ".join(sites) if sites else "Keine Sites registriert."
+
+    elif t == "WP_ADD":
+        # Payload: domain||base_url||user||app_password||has_woo (true|false)
+        parts = [s.strip() for s in p.split("||")]
+        if len(parts) < 5:
+            return "Format: domain||base_url||user||app_password||true|false"
+        wordpress_tools.add_site(parts[0], parts[1], parts[2], parts[3], parts[4].lower() == "true")
+        return f"Site '{parts[0]}' registriert."
+
+    elif t == "WP_TEST":
+        info = await wordpress_tools.test_connection(p.strip())
+        return f"Verbindung OK: {info.get('name')} (WP {info.get('version')})"
+
+    elif t == "WP_DRAFT_POST":
+        # Payload: domain||title||body
+        parts = [s.strip() for s in p.split("||", 2)]
+        if len(parts) < 3:
+            return "Format: domain||titel||inhalt"
+        post = await wordpress_tools.draft_post(parts[0], parts[1], parts[2])
+        return f"Entwurf erstellt: id={post.get('id')} '{post.get('title')}'. Veroeffentlichen?"
+
+    elif t == "WP_PUBLISH":
+        # Payload: domain||post_id — needs verbal confirmation
+        parts = [s.strip() for s in p.split("||", 1)]
+        if len(parts) < 2:
+            return "Format: domain||post_id"
+        post = await wordpress_tools.publish_post(parts[0], int(parts[1]))
+        return f"Veroeffentlicht: {post.get('link', '')}"
+
+    elif t == "WP_COMMENTS":
+        # Payload: domain  (lists pending comments)
+        comments = await wordpress_tools.list_comments(p.strip(), status="hold", limit=15)
+        if not comments:
+            return "Keine offenen Kommentare." if LANGUAGE == "de" else "No pending comments."
+        return "\n".join(f"id={c.get('id')} von {c.get('author', '?')}: {str(c.get('content', ''))[:120]}" for c in comments)
+
+    elif t == "WP_MODERATE":
+        # Payload: domain||comment_id||action (approve|hold|spam|trash)
+        parts = [s.strip() for s in p.split("||")]
+        if len(parts) < 3:
+            return "Format: domain||comment_id||approve|hold|spam|trash"
+        ok = await wordpress_tools.moderate_comment(parts[0], int(parts[1]), parts[2])
+        return "OK." if ok else "Fehlgeschlagen."
+
+    elif t == "WP_PRODUCTS":
+        prods = await wordpress_tools.list_products(p.strip(), limit=20)
+        if not prods:
+            return "Keine Produkte oder kein WooCommerce."
+        return "\n".join(f"id={pr.get('id')} {pr.get('name')}: {pr.get('price', '?')} EUR" for pr in prods)
+
+    elif t == "WP_UPDATE_PRICE":
+        # Payload: domain||product_id||regular_price[||sale_price]
+        parts = [s.strip() for s in p.split("||")]
+        if len(parts) < 3:
+            return "Format: domain||product_id||preis[||sale_preis]"
+        sale = parts[3] if len(parts) > 3 and parts[3] else None
+        prod = await wordpress_tools.update_product_price(parts[0], int(parts[1]), parts[2], sale)
+        return f"Preis aktualisiert: {prod.get('name')} = {prod.get('price')} EUR"
+
+    # ============ Calendar ============
+    elif t == "CAL_TODAY":
+        events = await calendar_tools.list_today()
+        if not events:
+            return "Keine Termine heute." if LANGUAGE == "de" else "No events today."
+        return "\n".join(f"{e['start']} — {e['title']} ({e['calendar']})" for e in events)
+
+    elif t == "CAL_UPCOMING":
+        days = int(p.strip()) if p.strip().isdigit() else 7
+        events = await calendar_tools.list_upcoming(days=days)
+        if not events:
+            return f"Keine Termine in den naechsten {days} Tagen."
+        return "\n".join(f"{e['start']} — {e['title']}" for e in events)
+
+    elif t == "CAL_CREATE":
+        # Payload: title||YYYY-MM-DD HH:MM||duration_minutes
+        parts = [s.strip() for s in p.split("||")]
+        if len(parts) < 2:
+            return "Format: titel||YYYY-MM-DD HH:MM[||dauer_minuten]"
+        duration = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 60
+        ev = await calendar_tools.create_event(parts[0], parts[1], duration_minutes=duration)
+        return f"Termin erstellt: {ev['title']}"
+
+    # ============ WhatsApp ============
+    elif t == "WHATSAPP_OPEN":
+        result = await whatsapp_tools.open_whatsapp()
+        if result == "QR_SCAN_REQUIRED":
+            return "Bitte QR-Code im geoeffneten Browser scannen."
+        return "WhatsApp bereit."
+
+    elif t == "WHATSAPP_UNREAD":
+        chats = await whatsapp_tools.list_unread_chats(limit=10)
+        if not chats:
+            return "Keine ungelesenen Chats."
+        return "\n".join(f"{c['name']} ({c['unread_count']}): {c['preview']}" for c in chats)
+
+    elif t == "WHATSAPP_READ":
+        msgs = await whatsapp_tools.read_chat(p.strip(), count=10)
+        if not msgs:
+            return "Keine Nachrichten gefunden."
+        return "\n".join(f"[{m['time']}] {m['from']}: {m['text']}" for m in msgs)
+
+    elif t == "WHATSAPP_SEND":
+        # Payload: contact||text — needs verbal confirmation
+        parts = [s.strip() for s in p.split("||", 1)]
+        if len(parts) < 2:
+            return "Format: kontakt||text"
+        ok = await whatsapp_tools.send_message(parts[0], parts[1])
+        return "Gesendet." if ok else "Senden fehlgeschlagen."
+
+    # ============ Obsidian Notes ============
+    elif t == "NOTE":
+        path = await obsidian_tools.append_note(TASKS_FILE, p)
+        return f"Notiert in {os.path.basename(path)}."
+
+    # ============ Translation ============
+    elif t == "TRANSLATE":
+        # Payload: target_lang||text   target: de|en|fr
+        parts = [s.strip() for s in p.split("||", 1)]
+        if len(parts) < 2:
+            return "Format: de|en|fr||text"
+        return await translation_tools.translate(ai, parts[1], parts[0])
 
     return ""
 
