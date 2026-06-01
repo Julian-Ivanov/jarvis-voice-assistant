@@ -3,17 +3,93 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>J.A.R.V.I.S.</title>
+    <title>J.A.R.V.I.S. — Personal AI Assistant</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <div id="app">
-        <div id="orb-container">
-            <div id="orb" class="idle"></div>
+        <!-- MAIN INTERFACE -->
+        <div id="main-interface">
+            <!-- Header -->
+            <header id="header">
+                <div class="header-content">
+                    <div class="logo">J.A.R.V.I.S.</div>
+                    <div class="status-badge" id="status-badge">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Bereit</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Central Orb Area -->
+            <div id="orb-area">
+                <div id="orb-container">
+                    <div id="orb" class="idle">
+                        <div class="orb-inner"></div>
+                    </div>
+                </div>
+                <div id="status" class="status-message">Klicke auf die Orb oder sprich...</div>
+            </div>
+
+            <!-- Transcript Area -->
+            <div id="transcript-section">
+                <div id="transcript" class="transcript-content"></div>
+            </div>
+
+            <!-- Input Area -->
+            <div id="input-area" class="input-section">
+                <input
+                    type="text"
+                    id="text-input"
+                    placeholder="Oder hier tippen und Enter drücken..."
+                    class="text-input"
+                />
+                <button id="send-btn" class="send-button" title="Senden">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 2L11 13m11-11l-7 20-4-9-9-4 20-7z"></path>
+                    </svg>
+                </button>
+            </div>
         </div>
-        <div id="status">Klicke den Orb um zu sprechen</div>
-        <div id="transcript"></div>
+
+        <!-- TASK PANEL (Sidebar) -->
+        <div id="task-panel" class="task-panel">
+            <div class="task-panel-header">
+                <h3>Aufgaben</h3>
+                <button id="task-panel-toggle" class="task-toggle-btn" title="Tasks ein-/ausblenden">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 11l3 3L22 4"></path>
+                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                    </svg>
+                </button>
+            </div>
+            <div id="task-list" class="task-list"></div>
+            <div class="task-add-area">
+                <input type="text" id="task-input" class="task-input" placeholder="Neue Aufgabe..." />
+                <button id="task-add-btn" class="task-add-btn" title="Hinzufügen">+</button>
+            </div>
+        </div>
+
+        <!-- INFO PANEL (Modal für Informationen) -->
+        <div id="info-panel" class="info-panel hidden">
+            <div class="info-panel-content">
+                <div class="info-panel-header">
+                    <h2 id="info-title">Information</h2>
+                    <button id="close-info-btn" class="close-button">&times;</button>
+                </div>
+                <div id="info-body" class="info-panel-body">
+                    <!-- Content wird hier eingefügt -->
+                </div>
+                <div class="info-panel-footer">
+                    <button id="info-close-action" class="btn-primary">Verstanden</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- OVERLAY (für Modal) -->
+        <div id="overlay" class="overlay hidden"></div>
     </div>
+
     <script src="/static/main.js"></script>
 </body>
 </html>
