@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>June — TV Interface</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #050508;
+            color: #e8e4dc;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* --- Background Network --- */
+        .bg-network {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .bg-network canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* --- Main Grid --- */
+        .tv-layout {
+            position: relative;
+            z-index: 1;
+            display: grid;
+            grid-template-columns: 260px 1fr 320px;
+            grid-template-rows: 1fr auto;
+            height: 100vh;
+            padding: 48px 48px 32px;
+            gap: 0 40px;
+        }
+
+        /* --- Left Panel --- */
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 48px;
+        }
+
+        .june-title h1 {
+            font-size: 42px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+            color: #f5f0e8;
+            margin-bottom: 12px;
+        }
+
+        .june-title .tagline {
+            font-size: 14px;
+            font-weight: 300;
+            line-height: 1.8;
+            color: rgba(245, 240, 232, 0.5);
+            letter-spacing: 0.5px;
+        }
+
+        .nav-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .nav-list li {
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 400;
+            color: rgba(245, 240, 232, 0.4);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            letter-spacing: 0.3px;
+        }
+
+        .nav-list li:hover {
+            color: rgba(245, 240, 232, 0.7);
+            background: rgba(245, 240, 232, 0.04);
+        }
+
+        .nav-list li.active {
+            color: rgba(245, 240, 232, 0.9);
+            background: rgba(245, 240, 232, 0.06);
+        }
+
+        /* --- Center: June Head --- */
+        .center-panel {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .june-head-container {
+            position: relative;
+            width: 420px;
+            height: 500px;
+        }
+
+        .june-head-svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .head-glow {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            height: 350px;
+            background: radial-gradient(ellipse, rgba(245, 235, 210, 0.06) 0%, transparent 70%);
+            filter: blur(40px);
+            animation: head-breathe 4s ease-in-out infinite;
+        }
+
+        .forehead-orb {
+            position: absolute;
+            top: 22%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(245, 235, 210, 0.8), rgba(245, 235, 210, 0.1));
+            box-shadow: 0 0 30px rgba(245, 235, 210, 0.3), 0 0 60px rgba(245, 235, 210, 0.1);
+            animation: orb-pulse 3s ease-in-out infinite;
+        }
+
+        @keyframes head-breathe {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        @keyframes orb-pulse {
+            0%, 100% { opacity: 1; transform: translateX(-50%) scale(1); }
+            50% { opacity: 0.6; transform: translateX(-50%) scale(0.9); }
+        }
+
+        /* --- Right Dialog Card --- */
+        .right-panel {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .dialog-card {
+            background: rgba(245, 240, 232, 0.03);
+            border: 1px solid rgba(245, 240, 232, 0.06);
+            border-radius: 16px;
+            padding: 40px 32px;
+            max-width: 280px;
+            backdrop-filter: blur(20px);
+        }
+
+        .dialog-card .card-name {
+            font-size: 18px;
+            font-weight: 500;
+            color: rgba(245, 240, 232, 0.9);
+            margin-bottom: 24px;
+        }
+
+        .dialog-card .greeting {
+            font-size: 22px;
+            font-weight: 300;
+            line-height: 1.6;
+            color: rgba(245, 240, 232, 0.7);
+            margin-bottom: 28px;
+        }
+
+        .dialog-card .presence {
+            font-size: 13px;
+            font-weight: 300;
+            line-height: 2;
+            color: rgba(245, 240, 232, 0.35);
+            letter-spacing: 0.3px;
+        }
+
+        /* --- Bottom Bar --- */
+        .bottom-bar {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            gap: 32px;
+            padding-top: 24px;
+            border-top: 1px solid rgba(245, 240, 232, 0.04);
+        }
+
+        .vision-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .vision-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #00ccaa;
+            box-shadow: 0 0 8px rgba(0, 204, 170, 0.5);
+            animation: vision-blink 2s ease-in-out infinite;
+        }
+
+        @keyframes vision-blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .vision-badge span {
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: rgba(0, 204, 170, 0.7);
+        }
+
+        /* Waveform */
+        .waveform {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            height: 24px;
+            flex-shrink: 0;
+        }
+
+        .waveform .bar {
+            width: 2px;
+            background: rgba(245, 240, 232, 0.2);
+            border-radius: 1px;
+            animation: wave 1.2s ease-in-out infinite;
+        }
+
+        @keyframes wave {
+            0%, 100% { height: 4px; }
+            50% { height: 18px; }
+        }
+
+        /* Status Cards */
+        .status-cards {
+            display: flex;
+            gap: 20px;
+            margin-left: auto;
+        }
+
+        .status-card {
+            background: rgba(245, 240, 232, 0.03);
+            border: 1px solid rgba(245, 240, 232, 0.05);
+            border-radius: 12px;
+            padding: 14px 20px;
+            min-width: 180px;
+        }
+
+        .status-card .card-label {
+            font-size: 10px;
+            font-weight: 500;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: rgba(245, 240, 232, 0.3);
+            margin-bottom: 6px;
+        }
+
+        .status-card .card-value {
+            font-size: 14px;
+            font-weight: 400;
+            color: rgba(245, 240, 232, 0.8);
+        }
+
+        .status-card .card-meta {
+            font-size: 11px;
+            color: rgba(245, 240, 232, 0.3);
+            margin-top: 4px;
+        }
+
+        .status-card.focus .card-label { color: rgba(218, 165, 32, 0.6); }
+        .status-card.focus { border-color: rgba(218, 165, 32, 0.1); }
+
+        .status-card .progress-bar {
+            height: 2px;
+            background: rgba(245, 240, 232, 0.08);
+            border-radius: 1px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+
+        .status-card .progress-bar .fill {
+            height: 100%;
+            border-radius: 1px;
+            background: rgba(245, 240, 232, 0.3);
+            transition: width 1s ease;
+        }
+
+        .recommendation-btn {
+            margin-top: 10px;
+            padding: 6px 14px;
+            border: 1px solid rgba(245, 240, 232, 0.1);
+            border-radius: 6px;
+            background: rgba(245, 240, 232, 0.04);
+            color: rgba(245, 240, 232, 0.6);
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            letter-spacing: 0.3px;
+        }
+
+        .recommendation-btn:hover {
+            background: rgba(245, 240, 232, 0.08);
+            color: rgba(245, 240, 232, 0.9);
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-network">
+        <canvas id="networkCanvas"></canvas>
+    </div>
+
+    <div class="tv-layout">
+        <!-- Left Panel -->
+        <div class="left-panel">
+            <div class="june-title">
+                <h1>June</h1>
+                <div class="tagline">
+                    Deine KI. Dein Partner.<br>
+                    Dein Fortschritt.
+                </div>
+            </div>
+            <ul class="nav-list">
+                <li class="active">Übersicht</li>
+                <li>Ziele</li>
+                <li>Projekte</li>
+                <li>Wissen</li>
+                <li>Analysen</li>
+                <li>Integrationen</li>
+                <li>Einstellungen</li>
+            </ul>
+        </div>
+
+        <!-- Center: June Head -->
+        <div class="center-panel">
+            <div class="june-head-container">
+                <div class="head-glow"></div>
+                <svg class="june-head-svg" viewBox="0 0 420 500" id="juneHead"></svg>
+                <div class="forehead-orb"></div>
+            </div>
+        </div>
+
+        <!-- Right Dialog Card -->
+        <div class="right-panel">
+            <div class="dialog-card">
+                <div class="card-name">June</div>
+                <div class="greeting" id="greeting">
+                    Guten Abend.<br>
+                    Bereit für Fokus<br>
+                    und Fortschritt?
+                </div>
+                <div class="presence">
+                    Ich bin hier.<br>
+                    Zuverlässig.<br>
+                    Klar. Effizient.<br>
+                    Für dich.
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Bar -->
+        <div class="bottom-bar">
+            <div class="vision-badge">
+                <div class="vision-dot"></div>
+                <span>Vision aktiv</span>
+            </div>
+
+            <div class="waveform" id="waveform"></div>
+
+            <div class="status-cards">
+                <div class="status-card focus">
+                    <div class="card-label">Aktueller Fokus</div>
+                    <div class="card-value">Deep Work</div>
+                    <div class="card-meta">2h 15m verbleibend</div>
+                </div>
+                <div class="status-card">
+                    <div class="card-label">Fortschritt heute</div>
+                    <div class="card-value">67 %</div>
+                    <div class="progress-bar"><div class="fill" style="width: 67%"></div></div>
+                </div>
+                <div class="status-card">
+                    <div class="card-label">Nächste Empfehlung</div>
+                    <div class="card-value">Code Review optimieren</div>
+                    <button class="recommendation-btn">Starten</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Time-based greeting ---
+        (function() {
+            const h = new Date().getHours();
+            let greet = 'Guten Abend.';
+            if (h >= 5 && h < 12) greet = 'Guten Morgen.';
+            else if (h >= 12 && h < 18) greet = 'Guten Tag.';
+            document.getElementById('greeting').innerHTML =
+                greet + '<br>Bereit für Fokus<br>und Fortschritt?';
+        })();
+
+        // --- Waveform bars ---
+        (function() {
+            const wf = document.getElementById('waveform');
+            for (let i = 0; i < 24; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'bar';
+                bar.style.animationDelay = (i * 0.08) + 's';
+                bar.style.height = '4px';
+                wf.appendChild(bar);
+            }
+        })();
+
+        // --- Background network canvas ---
+        (function() {
+            const canvas = document.getElementById('networkCanvas');
+            const ctx = canvas.getContext('2d');
+            let w, h, points = [];
+
+            function resize() {
+                w = canvas.width = window.innerWidth;
+                h = canvas.height = window.innerHeight;
+            }
+
+            function initPoints() {
+                points = [];
+                const count = Math.floor((w * h) / 18000);
+                for (let i = 0; i < count; i++) {
+                    points.push({
+                        x: Math.random() * w,
+                        y: Math.random() * h,
+                        vx: (Math.random() - 0.5) * 0.15,
+                        vy: (Math.random() - 0.5) * 0.15,
+                        r: Math.random() * 1.2 + 0.3,
+                    });
+                }
+            }
+
+            function draw() {
+                ctx.clearRect(0, 0, w, h);
+
+                for (const p of points) {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    if (p.x < 0 || p.x > w) p.vx *= -1;
+                    if (p.y < 0 || p.y > h) p.vy *= -1;
+                }
+
+                ctx.strokeStyle = 'rgba(245, 240, 232, 0.03)';
+                ctx.lineWidth = 0.5;
+                for (let i = 0; i < points.length; i++) {
+                    for (let j = i + 1; j < points.length; j++) {
+                        const dx = points[i].x - points[j].x;
+                        const dy = points[i].y - points[j].y;
+                        const dist = dx * dx + dy * dy;
+                        if (dist < 14000) {
+                            ctx.beginPath();
+                            ctx.moveTo(points[i].x, points[i].y);
+                            ctx.lineTo(points[j].x, points[j].y);
+                            ctx.stroke();
+                        }
+                    }
+                }
+
+                for (const p of points) {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(245, 240, 232, ${0.08 + Math.random() * 0.04})`;
+                    ctx.fill();
+                }
+
+                requestAnimationFrame(draw);
+            }
+
+            resize();
+            initPoints();
+            draw();
+            window.addEventListener('resize', () => { resize(); initPoints(); });
+        })();
+
+        // --- June Head SVG ---
+        (function() {
+            const svg = document.getElementById('juneHead');
+            const ns = 'http://www.w3.org/2000/svg';
+            const cx = 210, cy = 220;
+
+            // Head outline points (elliptical with jaw)
+            function headShape(angle) {
+                const a = 130, b = 160;
+                const jawFactor = angle > Math.PI * 0.6 && angle < Math.PI * 1.4
+                    ? 0.85 + 0.15 * Math.sin((angle - Math.PI * 0.6) / (Math.PI * 0.8) * Math.PI)
+                    : 1;
+                const chinNarrow = angle > Math.PI * 0.75 && angle < Math.PI * 1.25
+                    ? 0.7 + 0.3 * Math.abs(Math.cos((angle - Math.PI) * 2))
+                    : 1;
+                return {
+                    x: cx + Math.cos(angle) * a * chinNarrow,
+                    y: cy + Math.sin(angle) * b * jawFactor
+                };
+            }
+
+            // Generate dot cloud in head shape
+            const dots = [];
+            const dotCount = 280;
+            for (let i = 0; i < dotCount; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const radius = Math.random();
+                const p = headShape(angle);
+                const dx = (p.x - cx) * radius * 0.9;
+                const dy = (p.y - cy) * radius * 0.9;
+                const x = cx + dx + (Math.random() - 0.5) * 20;
+                const y = cy + dy + (Math.random() - 0.5) * 20;
+
+                if (Math.sqrt((x - cx) ** 2 + ((y - cy) / 1.2) ** 2) < 140) {
+                    dots.push({ x, y });
+                    const circle = document.createElementNS(ns, 'circle');
+                    circle.setAttribute('cx', x);
+                    circle.setAttribute('cy', y);
+                    circle.setAttribute('r', Math.random() * 1.5 + 0.5);
+                    circle.setAttribute('fill', `rgba(245, 235, 210, ${0.3 + Math.random() * 0.4})`);
+                    svg.appendChild(circle);
+                }
+            }
+
+            // Network lines between close dots
+            for (let i = 0; i < dots.length; i++) {
+                for (let j = i + 1; j < dots.length; j++) {
+                    const dx = dots[i].x - dots[j].x;
+                    const dy = dots[i].y - dots[j].y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 30 && Math.random() < 0.4) {
+                        const line = document.createElementNS(ns, 'line');
+                        line.setAttribute('x1', dots[i].x);
+                        line.setAttribute('y1', dots[i].y);
+                        line.setAttribute('x2', dots[j].x);
+                        line.setAttribute('y2', dots[j].y);
+                        line.setAttribute('stroke', `rgba(245, 235, 210, ${0.08 + Math.random() * 0.1})`);
+                        line.setAttribute('stroke-width', '0.5');
+                        svg.appendChild(line);
+                    }
+                }
+            }
+
+            // Head outline
+            const outline = document.createElementNS(ns, 'path');
+            let d = '';
+            for (let i = 0; i <= 100; i++) {
+                const angle = (i / 100) * Math.PI * 2 - Math.PI / 2;
+                const p = headShape(angle);
+                d += (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ',' + p.y.toFixed(1);
+            }
+            d += 'Z';
+            outline.setAttribute('d', d);
+            outline.setAttribute('fill', 'none');
+            outline.setAttribute('stroke', 'rgba(245, 235, 210, 0.12)');
+            outline.setAttribute('stroke-width', '1');
+            svg.appendChild(outline);
+
+            // Eyes
+            function drawEye(ex, ey) {
+                const eyeOuter = document.createElementNS(ns, 'ellipse');
+                eyeOuter.setAttribute('cx', ex);
+                eyeOuter.setAttribute('cy', ey);
+                eyeOuter.setAttribute('rx', '18');
+                eyeOuter.setAttribute('ry', '8');
+                eyeOuter.setAttribute('fill', 'none');
+                eyeOuter.setAttribute('stroke', 'rgba(245, 240, 220, 0.35)');
+                eyeOuter.setAttribute('stroke-width', '1');
+                svg.appendChild(eyeOuter);
+
+                const iris = document.createElementNS(ns, 'circle');
+                iris.setAttribute('cx', ex);
+                iris.setAttribute('cy', ey);
+                iris.setAttribute('r', '4');
+                iris.setAttribute('fill', 'rgba(245, 240, 220, 0.6)');
+                svg.appendChild(iris);
+
+                const glint = document.createElementNS(ns, 'circle');
+                glint.setAttribute('cx', ex + 1.5);
+                glint.setAttribute('cy', ey - 1.5);
+                glint.setAttribute('r', '1.2');
+                glint.setAttribute('fill', 'rgba(255, 255, 255, 0.8)');
+                svg.appendChild(glint);
+            }
+
+            drawEye(cx - 38, cy - 15);
+            drawEye(cx + 38, cy - 15);
+
+            // Nose line
+            const nose = document.createElementNS(ns, 'line');
+            nose.setAttribute('x1', cx);
+            nose.setAttribute('y1', cy + 10);
+            nose.setAttribute('x2', cx);
+            nose.setAttribute('y2', cy + 35);
+            nose.setAttribute('stroke', 'rgba(245, 235, 210, 0.12)');
+            nose.setAttribute('stroke-width', '0.8');
+            svg.appendChild(nose);
+
+            // Mouth
+            const mouth = document.createElementNS(ns, 'path');
+            mouth.setAttribute('d', `M${cx - 22} ${cy + 55} Q${cx} ${cy + 60} ${cx + 22} ${cy + 55}`);
+            mouth.setAttribute('fill', 'none');
+            mouth.setAttribute('stroke', 'rgba(245, 235, 210, 0.2)');
+            mouth.setAttribute('stroke-width', '1');
+            svg.appendChild(mouth);
+
+            // Subtle breathing animation for dots
+            const allCircles = svg.querySelectorAll('circle');
+            let phase = 0;
+            function animateDots() {
+                phase += 0.008;
+                allCircles.forEach((c, i) => {
+                    if (i < dots.length) {
+                        const offset = Math.sin(phase + i * 0.1) * 0.15;
+                        const baseOpacity = parseFloat(c.getAttribute('fill').match(/[\d.]+(?=\))/)[0]);
+                        const newOpacity = Math.max(0.1, Math.min(0.9, baseOpacity + offset));
+                        const rgba = c.getAttribute('fill').replace(/[\d.]+\)$/, newOpacity.toFixed(2) + ')');
+                        c.setAttribute('fill', rgba);
+                    }
+                });
+                requestAnimationFrame(animateDots);
+            }
+            animateDots();
+        })();
+    </script>
+</body>
+</html>

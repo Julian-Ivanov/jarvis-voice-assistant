@@ -316,6 +316,16 @@ async def serve_index():
     return FileResponse(os.path.join(os.path.dirname(__file__), "frontend", "index.html"))
 
 
+@app.get("/june-tv")
+async def serve_june_tv():
+    return FileResponse(os.path.join(os.path.dirname(__file__), "frontend", "june-tv.html"))
+
+
+@app.get("/june-pc")
+async def serve_june_pc():
+    return FileResponse(os.path.join(os.path.dirname(__file__), "frontend", "june-pc.html"))
+
+
 if __name__ == "__main__":
     import uvicorn
     print("=" * 50, flush=True)
