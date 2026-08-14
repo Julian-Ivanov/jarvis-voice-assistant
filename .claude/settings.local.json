@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(bash -n /Users/ki_lab_kitchen_narketing/Desktop/AI-Projects/_New-Project/jarvis-voice-assistant/scripts/launch-session.sh)"
-    ]
-  }
-}
