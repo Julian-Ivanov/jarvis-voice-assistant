@@ -3,62 +3,119 @@ Jarvis V2 — Browser Tools
 Web search via DuckDuckGo Lite, page visits via Playwright, URL opening.
 """
 
+import asyncio
+import platform
 import re
-import webbrowser
 import subprocess
+import webbrowser
 from urllib.parse import unquote, parse_qs, urlparse
 import httpx
 from playwright.async_api import async_playwright
 
 _browser = None
 _context = None
+_browser_lock = asyncio.Lock()
+
+IS_MAC = platform.system() == "Darwin"
+IS_WINDOWS = platform.system() == "Windows"
 
 
 def _bring_chromium_to_front():
-    """Bring the Playwright Chromium window to the foreground on Windows."""
+    """Bring the Playwright Chromium window to the foreground."""
     try:
-        subprocess.run([
-            "powershell", "-Command",
-            '(Get-Process -Name "chromium","chrome" -ErrorAction SilentlyContinue | '
-            'Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -Last 1).MainWindowHandle | '
-            'ForEach-Object { Add-Type "using System; using System.Runtime.InteropServices; '
-            'public class W { [DllImport(\\\"user32.dll\\\")] public static extern bool SetForegroundWindow(IntPtr h); }"; '
-            '[W]::SetForegroundWindow($_) }'
-        ], capture_output=True, timeout=3)
+        if IS_MAC:
+            subprocess.run([
+                "osascript", "-e",
+                'tell application "System Events" to set frontmost of '
+                '(first process whose name contains "Chromium" or name contains "Chrome") to true'
+            ], capture_output=True, timeout=3)
+        elif IS_WINDOWS:
+            subprocess.run([
+                "powershell", "-Command",
+                '(Get-Process -Name "chromium","chrome" -ErrorAction SilentlyContinue | '
+                'Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -Last 1).MainWindowHandle | '
+                'ForEach-Object { Add-Type "using System; using System.Runtime.InteropServices; '
+                'public class W { [DllImport(\\\"user32.dll\\\")] public static extern bool SetForegroundWindow(IntPtr h); }"; '
+                '[W]::SetForegroundWindow($_) }'
+            ], capture_output=True, timeout=3)
     except Exception:
         pass
 
 
 async def _get_browser():
     global _browser, _context
-    if _browser is None:
-        pw = await async_playwright().start()
-        _browser = await pw.chromium.launch(headless=False, args=["--start-maximized"])
-        _context = await _browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            no_viewport=True,
-        )
+    async with _browser_lock:
+        if _browser is None:
+            pw = await async_playwright().start()
+            _browser = await pw.chromium.launch(headless=False, args=["--start-maximized"])
+            ua = (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+                if IS_MAC
+                else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            )
+            _context = await _browser.new_context(
+                user_agent=ua,
+                no_viewport=True,
+            )
     return _context
 
 
 async def search_and_read(query: str) -> dict:
-    """Search DuckDuckGo in visible browser, click first result, read the page."""
+    """Search Google in visible browser, click first organic result, read the page.
+    NOTE: We deliberately leave the page open so the Boss can see what was opened.
+    Old pages from previous searches DO get cleaned up below to prevent Chromium leaks.
+    """
+    from urllib.parse import quote_plus
     ctx = await _get_browser()
+
+    # Cleanup: keep at most the last 2 pages alive — close any older ones to prevent
+    # tab buildup and memory leak across many searches.
+    try:
+        existing = list(ctx.pages)
+        if len(existing) > 2:
+            for old in existing[:-2]:
+                try:
+                    await old.close()
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
     page = await ctx.new_page()
     try:
-        # DuckDuckGo search (no cookie banner, no reCAPTCHA)
-        search_url = f"https://duckduckgo.com/?q={query}"
+        # Google search — German results, ignore ads/sitelinks
+        search_url = f"https://www.google.com/search?q={quote_plus(query)}&hl=de&gl=de"
         await page.goto(search_url, timeout=15000)
         _bring_chromium_to_front()
-        await page.wait_for_timeout(2000)
+        await page.wait_for_timeout(1500)
 
-        # Click first organic result
-        first_link = page.locator('[data-testid="result-title-a"]').first
+        # Dismiss Google cookie consent banner if it appears
+        for label in ["Alle akzeptieren", "Accept all", "Alle ablehnen", "Reject all"]:
+            try:
+                btn = page.get_by_role("button", name=label)
+                if await btn.count() > 0:
+                    await btn.first.click(timeout=2000)
+                    await page.wait_for_timeout(800)
+                    break
+            except Exception:
+                pass
+
+        # Click first organic result. Google's structure: #search > result > <a><h3>...
+        first_link = page.locator('#search a:has(h3)').first
+        if await first_link.count() == 0:
+            first_link = page.locator('div.g a h3').first  # fallback selector
+
         if await first_link.count() > 0:
-            await first_link.click()
-            await page.wait_for_timeout(3000)
+            try:
+                await first_link.click(timeout=5000)
+            except Exception:
+                # Result link may target _blank; navigate directly via href instead
+                href = await first_link.get_attribute("href")
+                if href:
+                    await page.goto(href, timeout=15000, wait_until="domcontentloaded")
+            await page.wait_for_timeout(2500)
 
-            # Read page content
             title = await page.title()
             url = page.url
             text = await page.evaluate("""
@@ -75,11 +132,9 @@ async def search_and_read(query: str) -> dict:
             """)
             return {"title": title, "url": url, "content": text[:3000]}
         else:
-            return {"title": "Keine Ergebnisse", "url": search_url, "content": "Keine Ergebnisse gefunden."}
+            return {"title": "Keine Ergebnisse", "url": search_url, "content": "Google lieferte keine Ergebnisse."}
     except Exception as e:
         return {"error": str(e), "url": query}
-    finally:
-        pass
 
 
 async def visit(url: str, max_chars: int = 5000) -> dict:

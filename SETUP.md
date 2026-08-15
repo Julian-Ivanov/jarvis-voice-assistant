@@ -13,11 +13,11 @@ Dein persoenlicher KI-Assistent — inspiriert von Iron Mans Jarvis.
 
 ## Voraussetzungen
 
-- **Windows 10/11**
+- **macOS 12+** (auf Apple Silicon und Intel getestet)
 - **Google Chrome** (fuer Spracheingabe + Jarvis UI)
 - **Claude Code** installiert
 
-Python, alle Dependencies und Browser-Treiber werden automatisch von Claude Code installiert — du musst nichts manuell einrichten.
+Python, alle Dependencies und Browser-Treiber werden automatisch von Claude Code installiert. Du musst lediglich nach dem Setup einmalig die macOS-Systemberechtigungen erteilen (siehe unten).
 
 ---
 
@@ -29,7 +29,7 @@ Oeffne diesen Ordner in VS Code, starte Claude Code, und sag:
 
 Claude Code fragt dich dann nach:
 
-1. **Dein Name** und wie du angesprochen werden willst (z.B. "Sir")
+1. **Dein Name** Sir
 2. **Anthropic API Key** — von https://console.anthropic.com (fuer Claude Haiku, das Gehirn)
 3. **ElevenLabs API Key** — von https://elevenlabs.io (fuer die Stimme)
 4. **Spotify-Song** — Link zum Song der beim Start spielen soll
@@ -44,9 +44,17 @@ Claude Code fragt dich dann nach:
 
 ### 1. Voraussetzungen installieren
 Claude Code prueft und installiert automatisch:
-- **Python 3.10+** (falls nicht vorhanden, via `winget install Python.Python.3.12`)
-- **Alle Python-Pakete** (`pip install -r requirements.txt`)
-- **Playwright Chromium** (`playwright install chromium`)
+- **Python 3.10+** (falls nicht vorhanden, via Homebrew: `brew install python@3.12`)
+- **Alle Python-Pakete** (`pip3 install -r requirements.txt`)
+- **Playwright Chromium** (`python3 -m playwright install chromium`)
+
+### 1b. macOS-Berechtigungen (manuell vom Nutzer)
+Damit Jarvis Mikrofon, Bildschirm und Fenstersteuerung nutzen darf, muessen folgende Berechtigungen erteilt werden in *System Settings → Privacy & Security*:
+- **Microphone** → Terminal (oder iTerm/VS Code, je nachdem wo du Jarvis startest)
+- **Screen Recording** → Terminal (fuer `[ACTION:SCREEN]`)
+- **Accessibility** → Terminal (fuer AppleScript-Fensterpositionierung)
+
+macOS fragt beim ersten Start automatisch — einfach erlauben.
 
 ### 2. config.json erstellen
 Claude Code erstellt `config.json` aus `config.example.json` mit deinen echten Daten:
@@ -58,10 +66,10 @@ Claude Code erstellt `config.json` aus `config.example.json` mit deinen echten D
   "user_name": "Dein Name",
   "user_address": "Sir",
   "city": "Hamburg",
-  "workspace_path": "C:\\pfad\\zum\\jarvis_template",
+  "workspace_path": "/Users/deinuser/path/to/jarvis-voice-assistant",
   "spotify_track": "spotify:track:DEIN_TRACK_ID",
   "browser_url": "https://deine-website.com",
-  "obsidian_inbox_path": "C:\\pfad\\zum\\obsidian\\inbox",
+  "obsidian_inbox_path": "/Users/deinuser/path/to/obsidian/inbox",
   "apps": ["obsidian://open"]
 }
 ```
@@ -100,21 +108,35 @@ Mikrofon (Chrome) → Web Speech API → WebSocket → FastAPI Server
 
 ### Jarvis manuell starten
 ```
-python server.py
+python3 server.py
 ```
 Dann http://localhost:8340 in Chrome oeffnen.
 
 ### Alles per Doppelklatschen starten
 ```
-python scripts\clap-trigger.py
+python3 scripts/clap-trigger.py
 ```
-Zweimal klatschen → Spotify, VS Code, Obsidian, Chrome mit Jarvis starten automatisch.
+Zweimal klatschen → Spotify, VS Code, Obsidian, Chrome mit Jarvis starten automatisch und werden in Quadranten angeordnet.
 
-### Clap Trigger beim Windows-Start
-1. `Win + R` → `taskschd.msc`
-2. Aufgabe erstellen → Trigger: "Bei Anmeldung"
-3. Aktion: `powershell` mit Argument:
-   `-ExecutionPolicy Bypass -WindowStyle Hidden -Command "python C:\DEIN\PFAD\scripts\clap-trigger.py"`
+### Clap Trigger beim macOS-Login
+
+**WICHTIG — macOS TCC-Stolperstein:** Wenn `clap-trigger.py` direkt ueber `launchd` (LaunchAgent) gestartet wird, bekommt der Python-Prozess **stillschweigend kein Mikrofon-Audio** (alle RMS-Werte sind 0.0), weil launchd-Prozesse keinen TCC-Permission-Prompt zeigen koennen. Loesung: ueber **Terminal.app** starten — Terminal hat bereits Mikrofon-Berechtigung, und das Python-Kind erbt sie.
+
+Im Repo liegt dafuer `scripts/clap-listener.command` — ein bash-Wrapper, der genau das macht.
+
+**Empfohlener Setup (Login Item):**
+1. *System Settings → General → Login Items & Extensions → Open at Login*
+2. **+** → waehle `scripts/clap-listener.command` aus dem Projektordner
+3. Beim ersten Start klatschen → macOS fragt evtl. nach Mikrofon-Berechtigung fuer Terminal → **Erlauben**
+
+**Alternative (launchd LaunchAgent):**
+Plist-Datei `~/Library/LaunchAgents/com.jarvis.clap.plist` mit `ProgramArguments`:
+```
+/usr/bin/open -a Terminal /Pfad/zu/scripts/clap-listener.command
+```
+Mit `RunAtLoad=true` und `KeepAlive=false`. Das `open -a Terminal` ist entscheidend — ohne den Terminal-Wrapper bekommt der Listener silent silence statt Audio.
+
+Aktivieren: `launchctl load ~/Library/LaunchAgents/com.jarvis.clap.plist`
 
 ---
 
@@ -132,10 +154,12 @@ Zweimal klatschen → Spotify, VS Code, Obsidian, Chrome mit Jarvis starten auto
 
 | Problem | Loesung |
 |---|---|
-| Jarvis spricht nicht | Pruefen ob Server laeuft (`python server.py`) und Chrome offen ist |
-| "Verbindung verloren" | Alter Server-Prozess laeuft noch → `taskkill /f /im python.exe` und neu starten |
-| Klatschen wird nicht erkannt | Threshold in `clap-trigger.py` anpassen |
-| Browser-Suche geht nicht | `playwright install chromium` ausfuehren |
+| Jarvis spricht nicht | Pruefen ob Server laeuft (`python3 server.py`) und Chrome offen ist |
+| "Verbindung verloren" | Alter Server-Prozess laeuft noch → `pkill -f "python.*server.py"` und neu starten |
+| Klatschen wird nicht erkannt | Threshold in `clap-trigger.py` anpassen, oder Mikrofon-Berechtigung pruefen (System Settings → Privacy & Security → Microphone) |
+| Screenshot leer / schwarz | Screen-Recording-Berechtigung fehlt fuer Terminal/Python (System Settings → Privacy & Security → Screen Recording) |
+| Fenster-Snapping funktioniert nicht | Accessibility-Berechtigung fuer Terminal fehlt (System Settings → Privacy & Security → Accessibility) |
+| Browser-Suche geht nicht | `python3 -m playwright install chromium` ausfuehren |
 | Kein Audio im Browser | Einmal auf die Seite klicken (Chrome Autoplay-Policy) |
 
 ---
@@ -144,12 +168,14 @@ Zweimal klatschen → Spotify, VS Code, Obsidian, Chrome mit Jarvis starten auto
 
 Wenn ein Nutzer "Richte Jarvis ein" sagt, fuehre folgende Schritte aus:
 
-**Schritt 0 — Voraussetzungen pruefen und installieren:**
-- Pruefe ob Python 3.10+ installiert ist: `python --version`
-- Falls nicht: `winget install Python.Python.3.12` — warte bis fertig, pruefe erneut
-- Pruefe ob Google Chrome installiert ist. Falls nicht, weise den Nutzer an Chrome zu installieren
-- Installiere Python-Pakete: `pip install -r requirements.txt`
-- Installiere Playwright Browser: `playwright install chromium`
+**Schritt 0 — Voraussetzungen pruefen und installieren (macOS):**
+- Pruefe ob Python 3.10+ installiert ist: `python3 --version`
+- Falls nicht: `brew install python@3.12` — warte bis fertig, pruefe erneut
+- Falls Homebrew fehlt: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
+- Pruefe ob Google Chrome installiert ist (`ls "/Applications/Google Chrome.app"`). Falls nicht, weise den Nutzer auf https://google.com/chrome hin
+- Installiere Python-Pakete: `pip3 install -r requirements.txt`
+- Installiere Playwright Browser: `python3 -m playwright install chromium`
+- Weise den Nutzer auf die noetigen macOS-Berechtigungen hin (Microphone, Screen Recording, Accessibility — siehe Abschnitt 1b)
 
 **Schritt 1 — Nutzerdaten abfragen:**
 Frage nach:
@@ -186,11 +212,11 @@ Ausserdem oben in `server.py` bei den Config-Defaults:
 WICHTIG: Pruefe den Prompt sorgfaeltig — "Julian" und "Sir" kommen an mehreren Stellen vor. Alle muessen ersetzt werden.
 
 **Schritt 5 — Testen:**
-- Starte den Server: `python server.py`
+- Starte den Server: `python3 server.py`
 - Oeffne http://localhost:8340 in Chrome
 - Pruefe ob Jarvis spricht und antwortet
 
-**Schritt 6 — Optional: Autostart einrichten (Task Scheduler)**
+**Schritt 6 — Optional: Autostart einrichten (macOS Login Items oder launchd LaunchAgent)**
 
 ---
 

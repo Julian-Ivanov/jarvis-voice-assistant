@@ -3,22 +3,24 @@ Jarvis V2 — Screen Capture
 Takes screenshots and describes them via Claude Vision.
 """
 
+import asyncio
 import base64
 import io
 from PIL import ImageGrab
 
 
 def capture_screen() -> bytes:
-    """Capture the entire screen, return PNG bytes."""
+    """Capture the entire screen, return PNG bytes (downscaled to fit Anthropic image limits)."""
     img = ImageGrab.grab()
+    img.thumbnail((1568, 1568))
     buf = io.BytesIO()
-    img.save(buf, format="PNG")
+    img.save(buf, format="PNG", optimize=True)
     return buf.getvalue()
 
 
 async def describe_screen(anthropic_client) -> str:
     """Capture screen and describe it using Claude Vision."""
-    png_bytes = capture_screen()
+    png_bytes = await asyncio.to_thread(capture_screen)
     b64 = base64.b64encode(png_bytes).decode("utf-8")
 
     response = await anthropic_client.messages.create(
@@ -37,7 +39,7 @@ async def describe_screen(anthropic_client) -> str:
                 },
                 {
                     "type": "text",
-                    "text": "Beschreibe kurz auf Deutsch was auf diesem Bildschirm zu sehen ist. Maximal 2-3 Saetze. Nenne die wichtigsten offenen Programme und Inhalte.",
+                    "text": "Briefly describe what's on this screen. Max 2-3 sentences. Name the most important open apps and content. Reply in German by default — if the original question was clearly English, reply in English.",
                 },
             ],
         }],

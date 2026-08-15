@@ -49,16 +49,22 @@ You (speak) → Chrome Browser (Web Speech API) → FastAPI Server (local)
 | Browser Control | Playwright | Automates a real browser you can see |
 | Screen Vision | Claude Vision + Pillow | Screenshots and describes your screen |
 | Clap Detection | sounddevice + numpy | Listens for double-clap to launch everything |
-| Window Management | PowerShell + Win32 API | Snaps windows into screen quadrants |
+| Window Management | AppleScript (macOS) / PowerShell + Win32 (Windows) | Snaps windows into screen quadrants |
 
 ---
 
 ## Prerequisites
 
-- **Windows 10/11**
+- **macOS 12+** *(this fork)* or **Windows 10/11** *(original template — see legacy `launch-session.ps1`)*
 - **Python 3.10+**
 - **Google Chrome**
 - **[Claude Code](https://claude.ai/code)** (recommended for setup)
+
+### macOS-only — system permissions
+Grant these once in *System Settings → Privacy & Security* before running Jarvis:
+- **Microphone** for Terminal (clap detection)
+- **Screen Recording** for Terminal (`[ACTION:SCREEN]` screenshots)
+- **Accessibility** for Terminal (AppleScript window snapping)
 
 ### API Keys Needed
 
@@ -92,8 +98,8 @@ You (speak) → Chrome Browser (Web Speech API) → FastAPI Server (local)
    ```bash
    git clone https://github.com/Julian-Ivanov/jarvis-voice-assistant.git
    cd jarvis-voice-assistant
-   pip install -r requirements.txt
-   playwright install chromium
+   pip3 install -r requirements.txt
+   python3 -m playwright install chromium
    ```
 
 2. **Create `config.json`** from the template:
@@ -101,7 +107,7 @@ You (speak) → Chrome Browser (Web Speech API) → FastAPI Server (local)
    cp config.example.json config.json
    ```
 
-3. **Edit `config.json`** with your API keys and preferences:
+3. **Edit `config.json`** with your API keys and preferences (POSIX paths on macOS):
    ```json
    {
      "anthropic_api_key": "sk-ant-...",
@@ -110,17 +116,17 @@ You (speak) → Chrome Browser (Web Speech API) → FastAPI Server (local)
      "user_name": "Your Name",
      "user_address": "Sir",
      "city": "Hamburg",
-     "workspace_path": "C:\\path\\to\\jarvis-voice-assistant",
+     "workspace_path": "/Users/youruser/path/to/jarvis-voice-assistant",
      "spotify_track": "spotify:track:YOUR_TRACK_ID",
      "browser_url": "https://your-website.com",
-     "obsidian_inbox_path": "C:\\path\\to\\obsidian\\inbox",
+     "obsidian_inbox_path": "/Users/youruser/path/to/obsidian/inbox",
      "apps": ["obsidian://open"]
    }
    ```
 
 4. **Start Jarvis:**
    ```bash
-   python server.py
+   python3 server.py
    ```
 
 5. **Open Chrome** and go to `http://localhost:8340`
@@ -133,23 +139,26 @@ You (speak) → Chrome Browser (Web Speech API) → FastAPI Server (local)
 
 ### Start Jarvis manually
 ```bash
-python server.py
+python3 server.py
 ```
 Then open `http://localhost:8340` in Chrome.
 
 ### Start everything with a double-clap
 ```bash
-python scripts/clap-trigger.py
+python3 scripts/clap-trigger.py
 ```
 Clap twice → Spotify plays your song, VS Code opens, Obsidian opens, Chrome opens with Jarvis. All windows snap into quadrants.
 
-### Auto-start on Windows login
-1. Open Task Scheduler (`Win + R` → `taskschd.msc`)
-2. Create Task → Trigger: "At log on"
-3. Action: `powershell` with argument:
-   ```
-   -ExecutionPolicy Bypass -Command "python C:\path\to\scripts\clap-trigger.py"
-   ```
+### Auto-start on macOS login
+Easiest path: drop a small `.command` wrapper into *System Settings → General → Login Items*:
+```bash
+#!/usr/bin/env bash
+cd "/Users/youruser/path/to/jarvis-voice-assistant"
+/usr/bin/python3 scripts/clap-trigger.py
+```
+Make it executable: `chmod +x ~/jarvis-clap.command`
+
+For a more robust option, use a `launchd` LaunchAgent at `~/Library/LaunchAgents/com.jarvis.clap.plist`.
 
 ---
 
@@ -181,8 +190,9 @@ jarvis-voice-assistant/
 │   ├── main.js            # Speech recognition + WebSocket + audio
 │   └── style.css          # Dark theme with animated orb
 ├── scripts/
-│   ├── clap-trigger.py    # Double-clap detection
-│   └── launch-session.ps1 # Launches all apps + window snapping
+│   ├── clap-trigger.py    # Double-clap detection (cross-platform)
+│   ├── launch-session.sh  # macOS launcher (bash + AppleScript snapping)
+│   └── launch-session.ps1 # Windows launcher (PowerShell + Win32)
 ├── CLAUDE.md              # Instructions for Claude Code
 └── SETUP.md               # Detailed setup guide
 ```
@@ -232,24 +242,22 @@ MAX_GAP = 1.2     # Seconds between claps
 
 | Problem | Solution |
 |---------|----------|
-| Jarvis doesn't speak | Check if server is running. Kill old process: `taskkill /f /im python.exe` then restart |
+| Jarvis doesn't speak | Check if server is running. Kill old process: `pkill -f "python.*server.py"` (macOS) / `taskkill /f /im python.exe` (Windows), then restart |
 | "Connection lost" in browser | Old server still running on port 8340. Kill it and restart |
-| Clap not detected | Lower `THRESHOLD` in `clap-trigger.py` (try 0.10) |
-| Browser search fails | Run `playwright install chromium` |
+| Clap not detected | Lower `THRESHOLD` in `clap-trigger.py` (try 0.10), or grant Microphone permission to Terminal (macOS Privacy & Security) |
+| Black screenshot from `[ACTION:SCREEN]` | Grant Screen Recording permission to Terminal/Python (macOS Privacy & Security) |
+| Window snapping silently does nothing | Grant Accessibility permission to Terminal (macOS Privacy & Security) |
+| Browser search fails | Run `python3 -m playwright install chromium` |
 | No audio in Chrome | Click anywhere on the page first (Chrome autoplay policy) |
 | Jarvis says "Sir planen" instead of "Sie planen" | Update the system prompt grammar rules in `server.py` |
 
 ---
 
-## Mac Users
+## Platform Notes
 
-This template is built for Windows. If you're on macOS, clone the repo and tell Claude Code:
+This fork has been adapted for **macOS** (bash + AppleScript launcher, osascript-based browser focus, POSIX paths). The original PowerShell launcher (`launch-session.ps1`) is kept for Windows users — `clap-trigger.py` auto-detects the platform and runs the right one.
 
-```
-Convert this project to work on macOS.
-```
-
-Claude Code will adapt the PowerShell scripts to shell scripts, adjust paths, and handle macOS-specific differences.
+If you're on Linux, both launchers will fall back to `bash launch-session.sh`; tweak the AppleScript window-snapping block (it will be silently skipped on non-Mac systems) and use `xdotool`/`wmctrl` if you want quadrant snapping.
 
 ---
 
